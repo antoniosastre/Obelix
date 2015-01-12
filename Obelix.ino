@@ -20,8 +20,8 @@ A0 - Emisor sensor presencia 1
 A1 - Receptor sensor presencia 1
 A2 - Emisor sensor presencia 2
 A3 - Receptor sensor presencia 2
-A4 - Status LED 1 (Atasco)
-A5 - Status LED 2 (Vacio)
+A4 - Status LED 1 (Vacio)
+A5 - Status LED 2 (Atasco)
 
 */
 
@@ -42,8 +42,8 @@ A5 - Status LED 2 (Vacio)
 #define emisor2 A2
 #define sensor1 A1
 #define sensor2 A3
-#define estatus1 A4
-#define estatus2 A5
+#define ledvacio A4 //Vacio
+#define ledastasco A5 //Atasco
 
 //Asignaciones de acciones
 #define sacar HIGH
@@ -62,6 +62,12 @@ bool errAtasco;
 bool errVacio;
 
 
+////////////////////////
+//                    //
+//      SETUP()       //
+//                    //
+////////////////////////
+
 void setup() {
   
   SoftwareSerial lcd(11, 12); // RX, TX del LCD
@@ -77,16 +83,55 @@ void setup() {
   pinMode(emisor2, OUTPUT);
   pinMode(sensor1, INPUT);
   pinMode(sensor2, INPUT);
-  pinMode(estatus1, OUTPUT);
-  pinMode(estatus2, OUTPUT);
+  pinMode(ledvacio, OUTPUT);
+  pinMode(ledatasco, OUTPUT);
   
   errAtasco = false;
   errVacio = false;
 
 }
 
+
+
+
+
+
+////////////////////////
+//                    //
+//       LOOP()       //
+//                    //
+////////////////////////
+
+
+
+
 void loop() {
   // put your main code here, to run repeatedly:
+  
+  //Ver si se quiere alimentar de forma manual
+  
+  if(digitalRead(pulsador1)==LOW){
+    digitalWrite(direccion, sacar);
+    analogWrite(motor, potencia);
+  }else{
+    analogWrite(motor, 0);
+  }
+  
+  //Comprobar el atasco y actualizar la luz.
+  if(errAtasco) {
+    digitalWrite(ledatasco, HIGH);
+  }else{
+    digitalWrite(ledatasco, LOW);
+  }
+  
+  
+  //Comprobar si vacio y actualizar la luz
+  if(isVacio()) {
+    digitalWrite(ledvacio, HIGH);
+  }else{
+    digitalWrite(ledvacio, LOW);
+  }
+  
   
   //Comprobar la hora de la comida
   if(!errAtasco && !errVacio){
@@ -97,6 +142,18 @@ void loop() {
 
 }
 
+
+
+
+/////////////////////////
+//                     //
+//      FUNCIONES      //
+//                     //
+/////////////////////////
+
+
+
+////////////////////////////////////////////////////////////////////////
 void alimentar(int raciones){
   
   int valorsensor1 = analogRead(sensor1);
@@ -144,4 +201,15 @@ void alimentar(int raciones){
    if(errAtasco) break;
  } 
   
+}
+
+////////////////////////////////////////////////////////////////////////
+bool isVacio(){
+  if(analogRead(sensor2) > margenopto){
+   errVacio = true; 
+   return true;
+  }else{
+   errVacio = false; 
+   return false;
+  }
 }
