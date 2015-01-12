@@ -28,6 +28,16 @@ A5 - Status LED 2 (Atasco)
 
 //Librerias
 #include <SoftwareSerial.h>
+#include <Bridge.h>
+#include <Console.h>
+#include <FileIO.h>
+#include <HttpClient.h>
+#include <Mailbox.h>
+#include <Process.h>
+#include <YunClient.h>
+#include <YunServer.h>
+#include <Wire.h>
+
 
 
 // Asignaciones de pines
@@ -43,7 +53,9 @@ A5 - Status LED 2 (Atasco)
 #define sensor1 A1
 #define sensor2 A3
 #define ledvacio A4 //Vacio
-#define ledastasco A5 //Atasco
+#define ledatasco A5 //Atasco
+
+
 
 //Asignaciones de acciones
 #define sacar HIGH
@@ -57,9 +69,12 @@ A5 - Status LED 2 (Atasco)
 #define margenopto 200
 #define margentiempo 5000
 
+
+
 //Declaraciones
 bool errAtasco;
 bool errVacio;
+bool valorbool;
 
 
 ////////////////////////
@@ -88,9 +103,9 @@ void setup() {
   
   errAtasco = false;
   errVacio = false;
-
+  
+  
 }
-
 
 
 
@@ -106,16 +121,34 @@ void setup() {
 
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
   
-  //Ver si se quiere alimentar de forma manual
   
+  
+  //Ver si se quiere alimentar de forma manual y comprobar el atasco.
+  if (analogRead(sensor1) > margenopto){
+    valorbool = true;
+  }else{
+    valorbool = false; 
+  } 
   if(digitalRead(pulsador1)==LOW){
     digitalWrite(direccion, sacar);
     analogWrite(motor, potencia);
+    
+    if (analogRead(sensor1) > margenopto){
+      if(!valorbool) errAtasco = false;
+    }else{
+     if(valorbool) errAtasco = false;
+    }
+    
   }else{
     analogWrite(motor, 0);
   }
+  
+  
+  
+  
+  
   
   //Comprobar el atasco y actualizar la luz.
   if(errAtasco) {
@@ -123,6 +156,10 @@ void loop() {
   }else{
     digitalWrite(ledatasco, LOW);
   }
+  
+  
+  
+  
   
   
   //Comprobar si vacio y actualizar la luz
@@ -133,12 +170,21 @@ void loop() {
   }
   
   
+  
+  
+  
+  
   //Comprobar la hora de la comida
   if(!errAtasco && !errVacio){
    //alimentar(raciones);
-    
-    
   }
+
+
+
+
+
+
+
 
 }
 
@@ -153,7 +199,7 @@ void loop() {
 
 
 
-////////////////////////////////////////////////////////////////////////
+// Alimentar //////////////////////////////////////////////////////////////////////
 void alimentar(int raciones){
   
   int valorsensor1 = analogRead(sensor1);
@@ -203,7 +249,7 @@ void alimentar(int raciones){
   
 }
 
-////////////////////////////////////////////////////////////////////////
+// Vacio //////////////////////////////////////////////////////////////////////
 bool isVacio(){
   if(analogRead(sensor2) > margenopto){
    errVacio = true; 
