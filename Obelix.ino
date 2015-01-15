@@ -1,31 +1,3 @@
-/*
-
-Software del alimentador perruno.
-
- 0 - Bridge RX
- 1 - Bridge TX
- 2 - SDA i2C Reloj
- 3 - SCL i2C Reloj
- 4 - Direccion Driver Motor
- 5 - PWM Velocidad Driver Motor
- 6 - Rele Timbre
- 7 - Pulsador 1
- 8 - Led Pulsador 1
- 9 - Pulsador 2
-10 - Led Pulsador 2
-11 - RX SoftwareSerial LCD
-12 - TX SoftwareSerial LCD
-13 - 
-A0 - Emisor sensor presencia 1
-A1 - Receptor sensor presencia 1
-A2 - Emisor sensor presencia 2
-A3 - Receptor sensor presencia 2
-A4 - Status LED 1 (Vacio)
-A5 - Status LED 2 (Atasco)
-
-*/
-
-
 //Librerias
 #include <SoftwareSerial.h>
 #include <Bridge.h>
@@ -38,43 +10,60 @@ A5 - Status LED 2 (Atasco)
 #include <YunServer.h>
 #include <Wire.h>
 
-
+#include <DS1307RTC.h>
+#include <serLCD.h>
+#include <Time.h>
 
 // Asignaciones de pines
-#define direccion 4
-#define motor 5
-#define timbre 6
-#define pulsador1 7
-#define pulsador2 9
-#define ledpulsador1 8
-#define ledpulsador2 10
-#define emisor1 A0
-#define emisor2 A2
-#define sensor1 A1
-#define sensor2 A3
-#define ledvacio A4 //Vacio
-#define ledatasco A5 //Atasco
+
+//#define RX 0
+//#define TX 1
+//#define SDA 2
+//#define SCL 3
+#define mdir 4
+#define mpow 5
+#define butt1 6
+//#define xx 7
+#define lbutt1 8
+#define lred 9
+#define lgreen 10
+#define lblue 11
+//#define TXLCD 12
+#define iled 13
+#define butt2 A0
+#define lbutt2 A1
+//#define xx A2
+//#define xx A3
+//#define xx A4
+//#define xx A5
 
 
 
 //Asignaciones de acciones
-#define sacar HIGH
-#define meter LOW
+#define give HIGH
+#define take LOW
 
-#define sonar HIGH
-#define callar LOW
+#define ring HIGH
+#define noring LOW
 
-#define racion 4
-#define potencia 200
-#define margenopto 200
-#define margentiempo 5000
+#define serving 15
+#define highpower 150
+#define lowpower 80
 
-
+#define entries 2
 
 //Declaraciones
-bool errAtasco;
-bool errVacio;
-bool valorbool;
+
+ // RX, TX del LCD
+int dispCurMinute = 0;
+int dispNextMinute = 0;
+long dispNextFeedTime = 0;
+int currentSecond = 0;
+serLCD lcd(12);
+
+long sc[entries];
+
+long nextFeedTime = 0;
 
 
 ////////////////////////
@@ -85,25 +74,49 @@ bool valorbool;
 
 void setup() {
   
-  SoftwareSerial lcd(11, 12); // RX, TX del LCD
   
-  pinMode(direccion, OUTPUT);
-  pinMode(motor, OUTPUT);
-  pinMode(timbre, OUTPUT);
-  pinMode(pulsador1, INPUT_PULLUP);
-  pinMode(pulsador2, INPUT_PULLUP);
-  pinMode(ledpulsador1, OUTPUT);
-  pinMode(ledpulsador2, OUTPUT);
-  pinMode(emisor1, OUTPUT);
-  pinMode(emisor2, OUTPUT);
-  pinMode(sensor1, INPUT);
-  pinMode(sensor2, INPUT);
-  pinMode(ledvacio, OUTPUT);
-  pinMode(ledatasco, OUTPUT);
+pinMode(mdir, OUTPUT);
+pinMode(mpow, OUTPUT);
+pinMode(butt1, INPUT_PULLUP);
+pinMode(lbutt1, OUTPUT);
+pinMode(lred, OUTPUT);
+pinMode(lblue, OUTPUT);
+pinMode(lgreen, OUTPUT);
+pinMode(iled, OUTPUT);
+pinMode(butt2, INPUT_PULLUP);
+pinMode(lbutt2, OUTPUT);
   
-  errAtasco = false;
-  errVacio = false;
+digitalWrite(mdir, give);
+analogWrite(mpow, 0);
+digitalWrite(lbutt1, LOW);
+digitalWrite(lred, LOW);
+digitalWrite(lblue, LOW);
+digitalWrite(lgreen, LOW);
+digitalWrite(iled, LOW);
+digitalWrite(lbutt2, LOW);
   
+delay(800);
+  
+lcd.clear();
+lcd.print("   Vers. 0.08   ");
+lcd.selectLine(2);
+lcd.print("A. Sastre - 2015");
+
+delay(2000);
+
+lcd.clear();
+
+setSyncProvider(RTC.get);
+
+digitalWrite(lred, LOW);
+
+
+sc[0] = 1421330400;
+sc[1] = 1421334400;
+
+
+getNextFeedTime();
+
   
 }
 
@@ -121,68 +134,40 @@ void setup() {
 
 
 void loop() {
-
   
+  displayHour();
+  displayNext();
+  displayCountDown();
   
-  
-  //Ver si se quiere alimentar de forma manual y comprobar el atasco.
-  if (analogRead(sensor1) > margenopto){
-    valorbool = true;
-  }else{
-    valorbool = false; 
-  } 
-  if(digitalRead(pulsador1)==LOW){
-    digitalWrite(direccion, sacar);
-    analogWrite(motor, potencia);
+  if(isTheTime()){
     
-    if (analogRead(sensor1) > margenopto){
-      if(!valorbool) errAtasco = false;
-    }else{
-     if(valorbool) errAtasco = false;
-    }
+    giveFood(1);
+    getNextFeedTime();
+    
+  }
+
+  if(digitalRead(butt1)==LOW){
+    
+    digitalWrite(mdir, give);
+    digitalWrite(lbutt1, HIGH);
+    analogWrite(mpow, 40);
+    
+  }else if(digitalRead(butt2)==LOW){
+    
+    giveFood(1);
     
   }else{
-    analogWrite(motor, 0);
+    
+   digitalWrite(mdir, give);
+   analogWrite(mpow, 0);
+   digitalWrite(lbutt1, LOW);
+   digitalWrite(lred, LOW);
+   digitalWrite(lblue, LOW);
+   analogWrite(lgreen, 10);
+   digitalWrite(iled, LOW);
+   digitalWrite(lbutt2, LOW);
+ 
   }
-  
-  
-  
-  
-  
-  
-  //Comprobar el atasco y actualizar la luz.
-  if(errAtasco) {
-    digitalWrite(ledatasco, HIGH);
-  }else{
-    digitalWrite(ledatasco, LOW);
-  }
-  
-  
-  
-  
-  
-  
-  //Comprobar si vacio y actualizar la luz
-  if(isVacio()) {
-    digitalWrite(ledvacio, HIGH);
-  }else{
-    digitalWrite(ledvacio, LOW);
-  }
-  
-  
-  
-  
-  
-  
-  //Comprobar la hora de la comida
-  if(!errAtasco && !errVacio){
-   //alimentar(raciones);
-  }
-
-
-
-
-
 
 
 
@@ -200,62 +185,174 @@ void loop() {
 
 
 // Alimentar //////////////////////////////////////////////////////////////////////
-void alimentar(int raciones){
-  
-  int valorsensor1 = analogRead(sensor1);
-  bool valorbool;
-  float tiempoinicio;
-  
-  if (valorsensor1>margenopto){
-    valorbool == true;
-  }else{
-   valorbool == false; 
-  }
+void giveFood(int servings){
  
- for (int i = 0 ; i < raciones ; i++) {
-   for(int j = 0 ; j < racion ; j++ ) {
-      digitalWrite(direccion, sacar);
-      analogWrite(motor, potencia);
+digitalWrite(lbutt2, HIGH);  
+
+digitalWrite(lred, LOW);
+digitalWrite(lblue, HIGH);
+digitalWrite(lgreen, LOW);
+
+delay(1000);
+
+digitalWrite(mdir, give);
+analogWrite(mpow, highpower);
+
+ for (int i = 0 ; i < servings ; i++) {
+   for(int j = 0 ; j < serving ; j++ ) {
       
-      tiempoinicio = millis();
-           
-      if(valorbool){
-        while(analogRead(sensor1) > margenopto){
-         
-          if ((tiempoinicio+margentiempo) > millis()){
-             errAtasco = true;
-             break;
-          }
-          delay(20); 
-        }
-      }else{
-         while(analogRead(sensor1) > margenopto){
-           if ((tiempoinicio+margentiempo) > millis()){
-             errAtasco = true;
-             break;
-          }
-         delay(20); 
-        }  
-      }
+      delay(100);
       
-      analogWrite(motor, 0);
-      
-      if(errAtasco) break;
-      
-   } 
-   
-   if(errAtasco) break;
- } 
+   }
+ }
+
+digitalWrite(mdir, take);
+analogWrite(mpow, lowpower);
+
+delay(1500);
+
+analogWrite(mpow, 0);
+ 
   
 }
 
-// Vacio //////////////////////////////////////////////////////////////////////
-bool isVacio(){
-  if(analogRead(sensor2) > margenopto){
-   errVacio = true; 
-   return true;
-  }else{
-   errVacio = false; 
-   return false;
-  }
+
+
+
+void displayHour(){
+
+  if(dispCurMinute != minute()){
+    
+    lcd.setCursor(1,1);
+    
+    if(hour() < 10)
+    lcd.print("0");
+    lcd.print(hour(), DEC);
+    
+    lcd.print(":");
+    
+    if(minute() < 10)
+    lcd.print("0");
+    lcd.print(minute(), DEC);
+    
+    //lcd.print(":");
+    
+    //if(second() < 10)
+    //lcd.print("0");
+    //lcd.print(second(), DEC);
+    
+    //lcd.setCursor(2,1);
+    //lcd.print(now());
+    
+    dispCurMinute = minute();
+    
+  } 
+  
 }
+
+
+void displayNext(){
+  
+ if(dispNextFeedTime != nextFeedTime){
+   
+    lcd.setCursor(2,1);
+    
+    if(hour(nextFeedTime) < 10)
+    lcd.print("0");
+    lcd.print(hour(nextFeedTime), DEC);
+    
+    lcd.print(":");
+    
+    if(minute(nextFeedTime) < 10)
+    lcd.print("0");
+    lcd.print(minute(nextFeedTime), DEC);
+    
+    //lcd.print(":");
+    
+    //if(second() < 10)
+    //lcd.print("0");
+    //lcd.print(second(), DEC);
+    
+    //lcd.setCursor(2,1);
+    //lcd.print(now());
+    
+    dispNextFeedTime = nextFeedTime;
+    
+  } 
+  
+}
+
+
+
+void displayCountDown(){
+  
+ if(currentSecond != second()){
+    
+   long left = nextFeedTime - now();
+   
+   if(left >= 0){
+   
+    lcd.setCursor(2,9);
+    
+    
+    
+    int hours, minutes, seconds;
+    
+    seconds = left % 60;
+    minutes = left / 60 % 60;
+    hours = left / 60 / 60 % 60;
+    
+    if(hours < 10)
+    lcd.print("0");
+    lcd.print(hours);
+    lcd.print(":");
+    if(minutes < 10)
+    lcd.print("0");
+    lcd.print(minutes);
+    lcd.print(":");
+    if(seconds < 10)
+    lcd.print("0");
+    lcd.print(seconds);
+ 
+   currentSecond = second();
+    
+   }
+  } 
+  
+}
+
+
+bool isTheTime(){
+  
+  for(int i=0; i< entries ; i++){
+
+    if(sc[i] <= now()){
+
+       sc[i] = sc[i]+(86400);
+       return true;
+       
+    }
+     
+  }
+ 
+ return false; 
+   
+}
+
+
+void getNextFeedTime(){
+  
+  nextFeedTime = sc[0];
+ 
+ for(int i=1; i< entries ; i++){
+
+    if(sc[i] < nextFeedTime){
+
+       nextFeedTime = sc[i];
+       
+    }
+     
+  }
+  
+}
+
