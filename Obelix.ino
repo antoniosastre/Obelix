@@ -10,6 +10,8 @@
 #include <YunServer.h>
 #include <Wire.h>
 
+#include <EEPROM.h>
+
 #include <DS1307RTC.h>
 #include <serLCD.h>
 #include <Time.h>
@@ -32,7 +34,7 @@
 #define iled 13
 #define butt2 A0
 #define lbutt2 A1
-//#define xx A2
+#define bell A2
 //#define xx A3
 //#define xx A4
 //#define xx A5
@@ -50,8 +52,6 @@
 #define highpower 150
 #define lowpower 80
 
-#define entries 2
-
 //Declaraciones
 
  // RX, TX del LCD
@@ -60,8 +60,6 @@ int dispNextMinute = 0;
 long dispNextFeedTime = 0;
 int currentSecond = 0;
 serLCD lcd(12);
-
-long sc[entries];
 
 long nextFeedTime = 0;
 
@@ -85,6 +83,7 @@ pinMode(lgreen, OUTPUT);
 pinMode(iled, OUTPUT);
 pinMode(butt2, INPUT_PULLUP);
 pinMode(lbutt2, OUTPUT);
+pinMode(bell, OUTPUT);
   
 digitalWrite(mdir, give);
 analogWrite(mpow, 0);
@@ -109,10 +108,6 @@ lcd.clear();
 setSyncProvider(RTC.get);
 
 digitalWrite(lred, LOW);
-
-
-sc[0] = 1421330400;
-sc[1] = 1421334400;
 
 
 getNextFeedTime();
@@ -213,6 +208,7 @@ delay(1500);
 
 analogWrite(mpow, 0);
  
+ ringBell();
   
 }
 
@@ -255,7 +251,7 @@ void displayNext(){
   
  if(dispNextFeedTime != nextFeedTime){
    
-    lcd.setCursor(2,1);
+    lcd.setCursor(1,12);
     
     if(hour(nextFeedTime) < 10)
     lcd.print("0");
@@ -324,13 +320,14 @@ void displayCountDown(){
 
 bool isTheTime(){
   
-  for(int i=0; i< entries ; i++){
+  for(int i=1; i<= EEPROM.read(0) ; i++){
 
-    if(sc[i] <= now()){
-
-       sc[i] = sc[i]+(86400);
+    if(EEPROMToDate(i) <= now()){
+      
+      dateToEEPROM(i, (EEPROMToDate(i)+86400));
+      
+      
        return true;
-       
     }
      
   }
@@ -342,17 +339,62 @@ bool isTheTime(){
 
 void getNextFeedTime(){
   
-  nextFeedTime = sc[0];
+  nextFeedTime = EEPROMToDate(1);
  
- for(int i=1; i< entries ; i++){
+ for(int i=2 ; i<= int(EEPROM.read(0)) ; i++){
 
-    if(sc[i] < nextFeedTime){
-
-       nextFeedTime = sc[i];
+     if(EEPROMToDate(i) < nextFeedTime){
+       nextFeedTime = EEPROMToDate(i);
        
     }
      
   }
   
 }
+
+void dateToEEPROM(int pos, long value){
+
+      //Decomposition from a long to 4 bytes by using bitshift.
+      //One = Most significant -> Four = Least significant byte
+      byte four = (value & 0xFF);
+      byte three = ((value >> 8) & 0xFF);
+      byte two = ((value >> 16) & 0xFF);
+      byte one = ((value >> 24) & 0xFF);
+
+      //Write the 4 bytes into the eeprom memory.
+      EEPROM.write(pos*4-3, four);
+      EEPROM.write(pos*4-2, three);
+      EEPROM.write(pos*4-1, two);
+      EEPROM.write(pos*4, one);
+  
+}
+
+long EEPROMToDate(int pos){
+ 
+  //Read the 4 bytes from the eeprom memory.
+      long four = EEPROM.read(pos*4-3);
+      long three = EEPROM.read(pos*4-2);
+      long two = EEPROM.read(pos*4-1);
+      long one = EEPROM.read(pos*4);
+
+      //Return the recomposed long by using bitshift.
+      return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF); 
+  
+}
+
+void ringBell(){
+  
+ digitalWrite(bell, HIGH);
+ delay(500);
+ digitalWrite(bell, LOW);
+ 
+ delay(1000);
+ 
+ digitalWrite(bell, HIGH);
+ delay(500);
+ digitalWrite(bell, LOW);
+  
+}
+
+
 
