@@ -60,6 +60,7 @@ int dispNextMinute = 0;
 long dispNextFeedTime = 0;
 int currentSecond = 0;
 serLCD lcd(12);
+bool wishToRing = false;
 
 long nextFeedTime = 0;
 
@@ -97,7 +98,7 @@ digitalWrite(lbutt2, LOW);
 delay(800);
   
 lcd.clear();
-lcd.print("   Vers. 0.08   ");
+lcd.print("   Vers. 0.10   ");
 lcd.selectLine(2);
 lcd.print("A. Sastre - 2015");
 
@@ -134,23 +135,29 @@ void loop() {
   displayNext();
   displayCountDown();
   
-  if(isTheTime()){
+  if (isTheTime()){
     
     giveFood(1);
+    ringBell(3);
     getNextFeedTime();
     
-  }
-
-  if(digitalRead(butt1)==LOW){
+  } else if (digitalRead(butt1)==LOW && digitalRead(butt2)==HIGH){
     
     digitalWrite(mdir, give);
     digitalWrite(lbutt1, HIGH);
-    analogWrite(mpow, 40);
+    analogWrite(mpow, highpower);
     
-  }else if(digitalRead(butt2)==LOW){
+  }else if(digitalRead(butt1)==HIGH && digitalRead(butt2)==LOW){
     
-    giveFood(1);
+    digitalWrite(lbutt2, HIGH);
+    wishToRing = true;
+    delay(10);
     
+  } else if(wishToRing && digitalRead(butt2)==HIGH){
+    
+    ringBell(1);
+    wishToRing = false;
+ 
   }else{
     
    digitalWrite(mdir, give);
@@ -160,7 +167,9 @@ void loop() {
    digitalWrite(lblue, LOW);
    analogWrite(lgreen, 10);
    digitalWrite(iled, LOW);
+   digitalWrite(lbutt1, LOW);
    digitalWrite(lbutt2, LOW);
+   
  
   }
 
@@ -207,8 +216,6 @@ analogWrite(mpow, lowpower);
 delay(1500);
 
 analogWrite(mpow, 0);
- 
- ringBell();
   
 }
 
@@ -382,17 +389,16 @@ long EEPROMToDate(int pos){
   
 }
 
-void ringBell(){
+void ringBell(int times){
   
+  for (int i = 0 ; i < times ; i++ ){
+    
  digitalWrite(bell, HIGH);
- delay(500);
+ delay(200);
  digitalWrite(bell, LOW);
- 
- delay(1000);
- 
- digitalWrite(bell, HIGH);
- delay(500);
- digitalWrite(bell, LOW);
+ delay(750);
+    
+  }
   
 }
 
