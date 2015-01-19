@@ -64,6 +64,8 @@ bool wishToRing = false;
 
 long nextFeedTime = 0;
 
+YunServer server;
+
 
 ////////////////////////
 //                    //
@@ -104,12 +106,21 @@ lcd.print("A. Sastre - 2015");
 
 delay(2000);
 
+digitalWrite(lblue, HIGH);
+
+Bridge.begin();
+server.begin();
+
+
 lcd.clear();
+
+digitalWrite(lred, HIGH);
+
+delay(2000);
 
 setSyncProvider(RTC.get);
 
 digitalWrite(lred, LOW);
-
 
 getNextFeedTime();
 
@@ -134,6 +145,28 @@ void loop() {
   displayHour();
   displayNext();
   displayCountDown();
+  
+  YunClient client = server.accept();  // Get clients coming from server
+  if (client)                          // Is there a new client?
+  {
+    client.print("<html><head><title>Obelix</title></head><body>");
+    client.print("<h1>Obelix</h1><br>");
+    client.print(nextFeedTime);
+    client.print("<br>");
+    
+    client.print(EEPROM.read(0));
+    
+    client.print("<br>");
+    
+    for(int i=1 ; i<= int(EEPROM.read(0)) ; i++){
+
+      client.print(EEPROMToDate(i));
+      client.print("<br>");
+       
+     }
+    client.print("</body></html>");
+    client.stop();                     // Close connection and free resources.
+  }
   
   if (isTheTime()){
     
@@ -328,6 +361,7 @@ void displayCountDown(){
 bool isTheTime(){
   
   for(int i=1; i<= EEPROM.read(0) ; i++){
+    //for(int i=1; i<= 12 ; i++){
 
     if(EEPROMToDate(i) <= now()){
       
@@ -349,6 +383,7 @@ void getNextFeedTime(){
   nextFeedTime = EEPROMToDate(1);
  
  for(int i=2 ; i<= int(EEPROM.read(0)) ; i++){
+   //for(int i=2 ; i<= 12 ; i++){
 
      if(EEPROMToDate(i) < nextFeedTime){
        nextFeedTime = EEPROMToDate(i);
